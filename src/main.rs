@@ -1,31 +1,16 @@
-extern crate trpl;
-use std::time::Duration;
-use trpl::Either;
-// use std::future::Future;
+use trpl::StreamExt;
 
 fn main() {
     trpl::run(async {
-        let slow = async {
-            trpl::sleep(Duration::from_secs(5)).await; 
-            // Simulate a slow operation. If change to 1 second and uncomment Future, it will succeed.
-            "Finally finished"
-        };
+        let values = 1..101;
+        let iter = values.map(|n| n*2);
+        let stream = trpl::stream_from_iter(iter);
 
-        match timeout(slow, Duration::from_secs(2)).await {
-            Ok(message) => println!("Succeeded with '{message}'"),
-            Err(duration) => {
-                println!("Failed after {} seconds", duration.as_secs())
-            }
+        let mut filtered = 
+            stream.filter(|value| value % 3 == 0);
+    
+        while let Some(value) = filtered.next().await {
+            println!("The value was: {value}");
         }
     });
-}
-
-async fn timeout<F: Future>(
-    future_to_try: F,
-    max_time: Duration,
-) -> Result<F::Output, Duration> {
-    match trpl::race(future_to_try, trpl::sleep(max_time)).await {
-        Either::Left(output) => Ok(output),
-        Either::Right(_) => Err(max_time),
-    }
 }
