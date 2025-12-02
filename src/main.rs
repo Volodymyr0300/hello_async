@@ -1,36 +1,31 @@
+extern crate trpl;
 use std::time::Duration;
-use trpl;
-use std::time::Instant;
+use trpl::Either;
+// use std::future::Future;
 
 fn main() {
     trpl::run(async {
+        let slow = async {
+            trpl::sleep(Duration::from_secs(5)).await; 
+            // Simulate a slow operation. If change to 1 second and uncomment Future, it will succeed.
+            "Finally finished"
+        };
 
-        let one_ns = Duration::from_nanos(1);
-        let start = Instant::now();
-        async {
-            for _ in 1..1000 {
-                trpl::sleep(one_ns).await;
+        match timeout(slow, Duration::from_secs(2)).await {
+            Ok(message) => println!("Succeeded with '{message}'"),
+            Err(duration) => {
+                println!("Failed after {} seconds", duration.as_secs())
             }
         }
-        .await;
-        let time = Instant::now() - start;
-        println!(
-            "'sleep' version finished after {} seconds.",
-            time.as_secs_f32()
-        );
-
-        let start = Instant::now();
-        async {
-            for _ in 1..1000 {
-                trpl::yield_now().await;
-            }
-        }
-        .await;
-        let time = Instant::now() - start;
-        println!(
-            "'yield' version finished after {} seconds.",
-            time.as_secs_f32()
-        );
-
     });
+}
+
+async fn timeout<F: Future>(
+    future_to_try: F,
+    max_time: Duration,
+) -> Result<F::Output, Duration> {
+    match trpl::race(future_to_try, trpl::sleep(max_time)).await {
+        Either::Left(output) => Ok(output),
+        Either::Right(_) => Err(max_time),
+    }
 }
